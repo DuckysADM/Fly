@@ -1,109 +1,130 @@
 local plr = game.Players.LocalPlayer
 local mouse = plr:GetMouse()
+local flying = false
+local speed = 130 -- Set your speed here
+local keys = {a = false, d = false, w = false, s = false}
+local Core
 
-localplayer = plr
+-- Function to create and align the Core part
+local function createCore()
+    if workspace:FindFirstChild("Core") then
+        workspace.Core:Destroy()
+    end
 
-if workspace:FindFirstChild("Core") then
-workspace.Core:Destroy()
+    Core = Instance.new("Part")
+    Core.Name = "Core"
+    Core.Size = Vector3.new(0.05, 0.05, 0.05)
+    Core.Anchored = false
+    Core.CanCollide = false
+    Core.Transparency = 1 -- Make it invisible
+
+    -- Set Core's initial position and weld it to LowerTorso
+    Core.Position = plr.Character:WaitForChild("LowerTorso").Position
+    local weld = Instance.new("Weld")
+    weld.Part0 = Core
+    weld.Part1 = plr.Character:WaitForChild("LowerTorso")
+    weld.C0 = CFrame.new(0, 0, 0)
+    weld.Parent = Core
+
+    Core.Parent = workspace
 end
 
-local Core = Instance.new("Part")
-Core.Name = "Core"
-Core.Size = Vector3.new(0.05, 0.05, 0.05)
+-- Function to start flying
+local function startFlying()
+    if not Core then return end
 
-spawn(function()
-Core.Parent = workspace
-local Weld = Instance.new("Weld", Core)
-Weld.Part0 = Core
-Weld.Part1 = localplayer.Character.LowerTorso
-Weld.C0 = CFrame.new(0, 0, 0)
+    -- Align the Core part with the LowerTorso, prevent any drift
+    Core.Position = plr.Character.LowerTorso.Position
+    task.wait(0.1) -- Slight delay to ensure proper alignment before starting flying
+
+    -- Disable walking immediately
+    plr.Character.Humanoid.PlatformStand = true
+
+    -- Add BodyPosition and BodyGyro to the Core
+    local pos = Instance.new("BodyPosition", Core)
+    local gyro = Instance.new("BodyGyro", Core)
+    pos.Name = "EPIXPOS"
+    pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
+    gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    gyro.cframe = Core.CFrame
+
+    -- Flying loop
+    repeat
+        task.wait()
+
+        local direction = Vector3.zero
+
+        -- Handle WASD keys for movement
+        if keys.w then
+            direction = direction + workspace.CurrentCamera.CFrame.LookVector
+        end
+        if keys.s then
+            direction = direction - workspace.CurrentCamera.CFrame.LookVector
+        end
+        if keys.d then
+            direction = direction + workspace.CurrentCamera.CFrame.RightVector
+        end
+        if keys.a then
+            direction = direction - workspace.CurrentCamera.CFrame.RightVector
+        end
+
+        -- Normalize direction and apply speed
+        if direction.Magnitude > 0 then
+            direction = direction.Unit
+        end
+
+        -- Apply movement based on the speed variable
+        pos.Position = Core.Position + direction * speed
+        gyro.CFrame = workspace.CurrentCamera.CFrame
+    until not flying
+
+    -- Reset walking state when flying stops
+    plr.Character.Humanoid.PlatformStand = false
+    if gyro then gyro:Destroy() end
+    if pos then pos:Destroy() end
+end
+
+-- Key Handling
+mouse.KeyDown:Connect(function(key)
+    if not Core or not Core.Parent then
+        flying = false
+        return
+    end
+    if key == "w" then
+        keys.w = true
+    elseif key == "s" then
+        keys.s = true
+    elseif key == "a" then
+        keys.a = true
+    elseif key == "d" then
+        keys.d = true
+    elseif key == "x" then -- toggle flying
+        flying = not flying
+        if flying then
+            startFlying()
+        end
+    end
 end)
 
-workspace:WaitForChild("Core")
+mouse.KeyUp:Connect(function(key)
+    if key == "w" then
+        keys.w = false
+    elseif key == "s" then
+        keys.s = false
+    elseif key == "a" then
+        keys.a = false
+    elseif key == "d" then
+        keys.d = false
+    end
+end)
 
-local torso = workspace.Core
-flying = true
-local speed=500 --change speed
-local keys={a=false,d=false,w=false,s=false}
-local e1
-local e2
-local function start()
-local pos = Instance.new("BodyPosition",torso)
-local gyro = Instance.new("BodyGyro",torso)
-pos.Name="EPIXPOS"
-pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
-pos.position = torso.Position
-gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-gyro.cframe = torso.CFrame
-repeat
-wait()
-localplayer.Character.Humanoid.PlatformStand=true
-local new=gyro.cframe - gyro.cframe.p + pos.position
-if not keys.w and not keys.s and not keys.a and not keys.d then
-speed=5
-end
-if keys.w then
-new = new + workspace.CurrentCamera.CoordinateFrame.lookVector * speed
-speed=speed+0
-end
-if keys.s then
-new = new - workspace.CurrentCamera.CoordinateFrame.lookVector * speed
-speed=speed+0
-end
-if keys.d then
-new = new * CFrame.new(speed,0,0)
-speed=speed+0
-end
-if keys.a then
-new = new * CFrame.new(-speed,0,0)
-speed=speed+0
-end
-if speed>10 then
-speed=5
-end
-pos.position=new.p
-if keys.w then
-gyro.cframe = workspace.CurrentCamera.CoordinateFrame*CFrame.Angles(-math.rad(speed*0),0,0)
-elseif keys.s then
-gyro.cframe = workspace.CurrentCamera.CoordinateFrame*CFrame.Angles(math.rad(speed*0),0,0)
-else
-gyro.cframe = workspace.CurrentCamera.CoordinateFrame
-end
-until flying == false
-if gyro then gyro:Destroy() end
-if pos then pos:Destroy() end
-flying=false
-localplayer.Character.Humanoid.PlatformStand=false
-speed=10
-end
-e1=mouse.KeyDown:connect(function(key)
-if not torso or not torso.Parent then flying=false e1:disconnect() e2:disconnect() return end
-if key=="w" then
-keys.w=true
-elseif key=="s" then
-keys.s=true
-elseif key=="a" then
-keys.a=true
-elseif key=="d" then
-keys.d=true
-elseif key=="x" then --keybind
-if flying==true then
-flying=false
-else
-flying=true
-start()
-end
-end
+-- Respawn Handling
+plr.CharacterAdded:Connect(function()
+    repeat task.wait() until plr.Character and plr.Character:FindFirstChild("LowerTorso")
+    createCore()
 end)
-e2=mouse.KeyUp:connect(function(key)
-if key=="w" then
-keys.w=false
-elseif key=="s" then
-keys.s=false
-elseif key=="a" then
-keys.a=false
-elseif key=="d" then
-keys.d=false
+
+-- Initial Setup
+if plr.Character and plr.Character:FindFirstChild("LowerTorso") then
+    createCore()
 end
-end)
-start()
