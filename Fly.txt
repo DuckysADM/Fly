@@ -1,130 +1,121 @@
-local plr = game.Players.LocalPlayer
-local mouse = plr:GetMouse()
-local flying = false
-local speed = 130 -- Set your speed here
-local keys = {a = false, d = false, w = false, s = false}
-local Core
+local function setupFly()
+    local plr = game.Players.LocalPlayer
+    local mouse = plr:GetMouse()
 
--- Function to create and align the Core part
-local function createCore()
+    -- Cleanup if there's a previous "Core"
     if workspace:FindFirstChild("Core") then
         workspace.Core:Destroy()
     end
 
-    Core = Instance.new("Part")
-    Core.Name = "Core"
-    Core.Size = Vector3.new(0.05, 0.05, 0.05)
-    Core.Anchored = false
-    Core.CanCollide = false
-    Core.Transparency = 1 -- Make it invisible
-
-    -- Set Core's initial position and weld it to LowerTorso
-    Core.Position = plr.Character:WaitForChild("LowerTorso").Position
-    local weld = Instance.new("Weld")
-    weld.Part0 = Core
-    weld.Part1 = plr.Character:WaitForChild("LowerTorso")
-    weld.C0 = CFrame.new(0, 0, 0)
-    weld.Parent = Core
-
-    Core.Parent = workspace
-end
-
--- Function to start flying
-local function startFlying()
-    if not Core then return end
-
-    -- Align the Core part with the LowerTorso, prevent any drift
-    Core.Position = plr.Character.LowerTorso.Position
-    task.wait(0.1) -- Slight delay to ensure proper alignment before starting flying
-
-    -- Disable walking immediately
-    plr.Character.Humanoid.PlatformStand = true
-
-    -- Add BodyPosition and BodyGyro to the Core
-    local pos = Instance.new("BodyPosition", Core)
-    local gyro = Instance.new("BodyGyro", Core)
-    pos.Name = "EPIXPOS"
-    pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
-    gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-    gyro.cframe = Core.CFrame
-
-    -- Flying loop
-    repeat
-        task.wait()
-
-        local direction = Vector3.zero
-
-        -- Handle WASD keys for movement
-        if keys.w then
-            direction = direction + workspace.CurrentCamera.CFrame.LookVector
+    -- Reset flying state if it's already active
+    if _G.FlyConnections then
+        for _, conn in pairs(_G.FlyConnections) do
+            conn:Disconnect()
         end
-        if keys.s then
-            direction = direction - workspace.CurrentCamera.CFrame.LookVector
-        end
-        if keys.d then
-            direction = direction + workspace.CurrentCamera.CFrame.RightVector
-        end
-        if keys.a then
-            direction = direction - workspace.CurrentCamera.CFrame.RightVector
+    end
+
+    _G.FlyConnections = {}
+
+    -- Function to setup core part for flying
+    local function setupCore()
+        if workspace:FindFirstChild("Core") then
+            workspace.Core:Destroy()
         end
 
-        -- Normalize direction and apply speed
-        if direction.Magnitude > 0 then
-            direction = direction.Unit
-        end
+        local Core = Instance.new("Part")
+        Core.Name = "Core"
+        Core.Size = Vector3.new(0.05, 0.05, 0.05)
+        Core.Parent = workspace
 
-        -- Apply movement based on the speed variable
-        pos.Position = Core.Position + direction * speed
-        gyro.CFrame = workspace.CurrentCamera.CFrame
-    until not flying
+        local Weld = Instance.new("Weld", Core)
+        Weld.Part0 = Core
+        Weld.Part1 = plr.Character:WaitForChild("LowerTorso")
+        Weld.C0 = CFrame.new(0, 0, 0)
 
-    -- Reset walking state when flying stops
-    plr.Character.Humanoid.PlatformStand = false
-    if gyro then gyro:Destroy() end
-    if pos then pos:Destroy() end
-end
+        return Core
+    end
 
--- Key Handling
-mouse.KeyDown:Connect(function(key)
-    if not Core or not Core.Parent then
+    local torso
+    local flying = false
+    local defaultSpeed = 20
+    local speed = defaultSpeed
+    local keys = { a = false, d = false, w = false, s = false }
+
+    local function startFlying()
+        local pos = Instance.new("BodyPosition", torso)
+        local gyro = Instance.new("BodyGyro", torso)
+        pos.Name = "EPIXPOS"
+        pos.maxForce = Vector3.new(math.huge, math.huge, math.huge)
+        pos.position = torso.Position
+        gyro.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+        gyro.cframe = torso.CFrame
+
+        repeat
+            task.wait()
+            plr.Character.Humanoid.PlatformStand = true
+            local new = gyro.cframe - gyro.cframe.p + pos.position
+
+            if not keys.w and not keys.s and not keys.a and not keys.d then
+                speed = 5
+            else
+                speed = defaultSpeed
+            end
+
+            if keys.w then
+                new = new + workspace.CurrentCamera.CFrame.lookVector * speed
+            end
+            if keys.s then
+                new = new - workspace.CurrentCamera.CFrame.lookVector * speed
+            end
+            if keys.d then
+                new = new * CFrame.new(speed, 0, 0)
+            end
+            if keys.a then
+                new = new * CFrame.new(-speed, 0, 0)
+            end
+
+            pos.position = new.p
+            gyro.cframe = workspace.CurrentCamera.CFrame
+        until not flying
+
+        pos:Destroy()
+        gyro:Destroy()
         flying = false
-        return
+        plr.Character.Humanoid.PlatformStand = false
     end
-    if key == "w" then
-        keys.w = true
-    elseif key == "s" then
-        keys.s = true
-    elseif key == "a" then
-        keys.a = true
-    elseif key == "d" then
-        keys.d = true
-    elseif key == "x" then -- toggle flying
-        flying = not flying
-        if flying then
-            startFlying()
-        end
+
+    local function setupControls()
+        local e1 = mouse.KeyDown:Connect(function(key)
+            if key == "w" then keys.w = true end
+            if key == "s" then keys.s = true end
+            if key == "a" then keys.a = true end
+            if key == "d" then keys.d = true end
+            if key == "x" then
+                flying = not flying
+                if flying then startFlying() end
+            end
+        end)
+
+        local e2 = mouse.KeyUp:Connect(function(key)
+            if key == "w" then keys.w = false end
+            if key == "s" then keys.s = false end
+            if key == "a" then keys.a = false end
+            if key == "d" then keys.d = false end
+        end)
+
+        table.insert(_G.FlyConnections, e1)
+        table.insert(_G.FlyConnections, e2)
     end
-end)
 
-mouse.KeyUp:Connect(function(key)
-    if key == "w" then
-        keys.w = false
-    elseif key == "s" then
-        keys.s = false
-    elseif key == "a" then
-        keys.a = false
-    elseif key == "d" then
-        keys.d = false
-    end
-end)
-
--- Respawn Handling
-plr.CharacterAdded:Connect(function()
-    repeat task.wait() until plr.Character and plr.Character:FindFirstChild("LowerTorso")
-    createCore()
-end)
-
--- Initial Setup
-if plr.Character and plr.Character:FindFirstChild("LowerTorso") then
-    createCore()
+    torso = setupCore()
+    setupControls()
 end
+
+-- Listen for player respawn
+game.Players.LocalPlayer.CharacterAdded:Connect(function()
+    -- Reset the flying setup when the player respawns
+    setupFly()
+end)
+
+-- Initialize fly controls for the first time
+setupFly()
